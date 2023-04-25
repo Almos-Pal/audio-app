@@ -7,11 +7,12 @@ interface State {
 interface Props {
   curTime: number;
   fullTime: number;
-  onCurTimeChange: (newCurTime: number) => void;
+  accessToken: string | null;
+  setCurTime: (newCurTime: number) => void;
 }
 
 function Seekbar(props: Props) {
-  const { curTime, fullTime, onCurTimeChange } = props;
+  const { curTime, fullTime,accessToken, setCurTime } = props;
   const [state, setState] = useState<State>({ seekbarValue: curTime });
   const { seekbarValue } = state;
   
@@ -30,11 +31,40 @@ function Seekbar(props: Props) {
     setState(prevState => ({ ...prevState, seekbarValue: curTime }));
   }, [curTime]);
   
+  const SeekbarMovement =  (audioUrl:string) => {
+      
+    let PutParams = {
+      method: 'PUT',
+      headers: {
+        "Content-Type": "application/json",
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      
+      
+    }
 
-  const handleSeekbarChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
+   
+    
+    let playSong =  fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${seekbarValue*1000}`,PutParams)
+    .then(response => {
+      if (response.ok) {
+        console.log('Track position updated successfully');
+      } else {
+        console.error('Error updating track position');
+      }
+    })
+    .catch(error => console.error(error));
+  }
+
+  const handleSeekbarChange = async(event: React.ChangeEvent<HTMLInputElement>)=> {
     const newCurTime = Number(event.target.value);
+    console.log(seekbarValue)
+    SeekbarMovement("alma")
     setSeekbarValue(newCurTime);
-    onCurTimeChange(newCurTime);
+    setCurTime(newCurTime);
+
+
+
   };
 
   return (
@@ -49,6 +79,7 @@ function Seekbar(props: Props) {
           step="1"
           value={seekbarValue}
           onChange={handleSeekbarChange}
+          
         />
       </div>
       <p className="fullTime">{formatTime(fullTime)}</p>

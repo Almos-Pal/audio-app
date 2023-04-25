@@ -1,25 +1,31 @@
 import { useState, useEffect, } from "react";
 import { useParams } from 'react-router-dom';
 
+
+
+
 interface State {
   authCode : string;
   searchInput: string;
-  accessToken: string;
+  refreshToken: string | null;
   albumData: any[];
   renderedAlbumNames: string[];
   trackData: any[];
   selectedAlbum: string;
   curAudio: any;
 }
+interface Props{
+  accessToken: string | null;
+  SetcurSong: (curSong: any) => void;
+}
 
 
-function FetchApi() {
-  let code1 :string = ""
-  const { code } = useParams<{ code: string }>();
-  const [state, setState] = useState<State>({
+function FetchApi(props: Props) {
+    const {accessToken,SetcurSong} = props
+    const [state, setState] = useState<State>({
     authCode :"",
     searchInput: "",
-    accessToken: "",
+    refreshToken: localStorage.getItem("refresh_token"),
     albumData: [],
     renderedAlbumNames: [],
     trackData: [],
@@ -28,22 +34,30 @@ function FetchApi() {
   });
 
   useEffect(() => {
-    let authParameters = {
+    const searchParams = new URLSearchParams(window.location.search);
+    const code = searchParams.get("code")
+    const authParameters = {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
       },
-      body: `grant_type=authorization_code&code=${code1}&redirect_uri=${encodeURIComponent(process.env.REACT_APP_REDIRECT_URI || '')}&client_id=${process.env.REACT_APP_SPOTIFY_API_ID || ''}&client_secret=${process.env.REACT_APP_SPOTIFY_API_SECRET || ''}`
+      body: `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(process.env.REACT_APP_REDIRECT_URI || '')}&client_id=${process.env.REACT_APP_SPOTIFY_API_ID || ''}&client_secret=${process.env.REACT_APP_SPOTIFY_API_SECRET || ''}`
     };
+
+    
+
+
 
     fetch("https://accounts.spotify.com/api/token", authParameters)
       .then((res) => res.json())
       .then((data) => {
+        if(data.access_token){
+        localStorage.setItem("access_token",data.access_token)
+        localStorage.setItem("refresh_token",data.refresh_token)
+
+        }
         console.log(data)
-        setState((prevState) => ({
-          ...prevState,
-          accessToken: data.access_token
-        }))
+       
   });
   }, []);
 
@@ -55,7 +69,7 @@ function FetchApi() {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${state.accessToken}`
+        Authorization: `Bearer ${accessToken}`
       }
     };
 
@@ -65,34 +79,34 @@ function FetchApi() {
     )
       .then((res) => res.json())
       .then((data) => data.artists.items[0].id);
+    
 
-    let albums = await fetch(
-      `https://api.spotify.com/v1/artists/${artistID}/albums?include_groups=album&market=US&limit=20`,
-      searchParams
-    )
-      .then((res) => res.json())
-      .then((data) => data.items);
 
-    let renderedAlbumNames = [...state.renderedAlbumNames];
-    let albumData = [...state.albumData];
+      let albumData :string[]= []; // Set albumData to an empty array
+      let renderedAlbumNames :string[] = [];
+      
+      let albums = await fetch(
+        `https://api.spotify.com/v1/artists/${artistID}/albums?include_groups=album&market=US&limit=20`,
+        searchParams
+      )
+        .then((res) => res.json())
+        .then((data) => data.items);
+      
+      albums.forEach((album: any) => {
+        if (!renderedAlbumNames.includes(album.name)) {
+          albumData.push(album);
+          renderedAlbumNames.push(album.name);
+        }
+      });
+      
+      setState((prevState) => ({
+        ...prevState,
+        albumData,
+        renderedAlbumNames
+      }));
+      
 
-    albums.forEach((album: any) => {
-      if (!renderedAlbumNames.includes(album.name)) {
-        albumData.push(album);
-        renderedAlbumNames.push(album.name);
-      }
-    });
-
-    setState((prevState) => ({
-      ...prevState,
-      albumData,
-      renderedAlbumNames
-    }));
-
-    let cur_playing = await fetch("https://api.spotify.com/v1/me",searchParams)
-    .then(res => res.json())
-    .then(data => console.log(data))
-
+   
 
     
 
@@ -104,9 +118,14 @@ function FetchApi() {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${state.accessToken}`
+        Authorization: `Bearer ${accessToken}`
       }
     };
+    
+
+
+
+
     let tracks = await fetch(
       `https://api.spotify.com/v1/albums/${albumId}/tracks?include_groups=track&market=US&limit=20`,
       searchParams
@@ -123,8 +142,30 @@ function FetchApi() {
   }
 
   const playAudio = async (audioUrl: string) => {
+    let searchParams = {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${
+          accessToken}`
+      }
+    }
+    let PutParams = {
+      method: 'PUT',
+      headers: {
+        "Content-Type": "application/json",
+        'Authorization': `Bearer ${
+          accessToken}`,
+      },
+      body: JSON.stringify({"uris": [audioUrl]})
+    }
 
-     
+
+    
+    let playSong = await fetch(`https://api.spotify.com/v1/me/player/play/`,PutParams);
+    console.log(playSong)
+    
+    
       if (state.curAudio && !state.curAudio.paused) {
         state.curAudio.pause();
       }
@@ -133,6 +174,13 @@ function FetchApi() {
       setState(prevState => ({ ...prevState, curAudio }));
       curAudio.play();
   };
+
+  const PlaySong = async (track: any) => {
+    SetcurSong(track)
+    console.log(track)
+    await playAudio(track.uri)
+  }
+
   return (
     <>
       <input
@@ -156,7 +204,7 @@ function FetchApi() {
   ))}
   <div>
   {state.trackData.map((track) => (
-    <p key={track.id} onClick={()=> playAudio(track.preview_url)}>{track.name}</p>
+    <p key={track.id} onClick={()=> PlaySong(track)}>{track.name}</p>
   ))}
 </div>
 </div>

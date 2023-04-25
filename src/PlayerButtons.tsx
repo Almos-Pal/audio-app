@@ -7,7 +7,11 @@ interface Props {
   isPlaying: boolean;
   curTime: number;
   fullTime: number
+  accessToken: string |null
   setCurTime: (time: number) => void;
+  SetcurSong: (curSong: any) => void;
+  curSong: any;
+
 }
 
 interface State {
@@ -15,7 +19,7 @@ interface State {
 }
 
 function PlayerButton(props: Props) {
-  const { isPlaying, curTime,fullTime, setCurTime } = props;
+  const { isPlaying, curTime,fullTime, accessToken, setCurTime,SetcurSong,curSong } = props;
   const [state, setState] = useState<State>({ playState: isPlaying });
 
   useEffect(() => {
@@ -33,6 +37,10 @@ function PlayerButton(props: Props) {
   }, [state.playState, curTime, setCurTime, fullTime]);
   
   const handlePlayPause = (): void => {
+    if(!state.playState){
+
+      PlayStart()
+    }
     if (curTime == fullTime){
 
       setCurTime(0);
@@ -47,14 +55,68 @@ function PlayerButton(props: Props) {
    
   };
 
+  const PlayStart =async () => {
+    let PutParams = {
+        method: 'PUT',
+        headers: {
+          "Content-Type": "application/json",
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      body: JSON.stringify({
+        "uris": [curSong.uri],
+        "position_ms": curTime*1000
+
+    })
+
+        
+        
+      }
+      let playSong =  fetch(`https://api.spotify.com/v1/me/player/play`,PutParams)
+      .then(response => {
+        if (response.ok) {
+          console.log('Start position updated successfully');
+        } else {
+          console.error('Error Playing the track');
+        }
+      })
+      .catch(error => console.error(error));
+      console.log(playSong)
+    }
+
+  const PlayPause =async () => {
+  let PutParams = {
+      method: 'PUT',
+      headers: {
+        "Content-Type": "application/json",
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      
+      
+    }
+    let playSong =  fetch(`https://api.spotify.com/v1/me/player/pause`,PutParams)
+    .then(response => {
+      if (response.ok) {
+        console.log('Track position updated successfully');
+      } else {
+        console.error('Error updating track position');
+      }
+    })
+    .catch(error => console.error(error));
+  }
+
   const getPlayPauseIcon = (): IconDefinition => {
+
     if (state.playState) {
+
       if (curTime < fullTime) {
+        console.log(curTime)
         return faPause;
+
       } else {
         return faArrowRotateLeft;
       }
     } else {
+      PlayPause()
       return faPlay;
     }
   };

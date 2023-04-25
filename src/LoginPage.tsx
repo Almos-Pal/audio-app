@@ -1,13 +1,8 @@
-import {useEffect} from 'react';
-
-
 const AUTHORIZE = "https://accounts.spotify.com/authorize"
 
 function requestAuthorization(){
-  let client_id = process.env.REACT_APP_SPOTIFY_API_ID;
-  let client_secret = process.env.REACT_APP_SPOTIFY_API_SECRET;
+  const client_id = process.env.REACT_APP_SPOTIFY_API_ID;
   const redirectUri = process.env.REACT_APP_REDIRECT_URI ?? "";
-
 
   let url = AUTHORIZE;
   url += "?client_id=" + client_id;
